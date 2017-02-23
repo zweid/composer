@@ -28,7 +28,9 @@ use Composer\Util\Silencer;
 use Composer\Plugin\PluginEvents;
 use Composer\EventDispatcher\Event;
 use Seld\JsonLint\DuplicateKeyException;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Formatter\OutputFormatterStyle;
+use Symfony\Component\Console\Output\ConsoleOutput;
 use Composer\EventDispatcher\EventDispatcher;
 use Composer\Autoload\AutoloadGenerator;
 use Composer\Package\Version\VersionParser;
@@ -226,6 +228,19 @@ class Factory
     }
 
     /**
+     * Creates a ConsoleOutput instance
+     *
+     * @return ConsoleOutput
+     */
+    public static function createOutput()
+    {
+        $styles = self::createAdditionalStyles();
+        $formatter = new OutputFormatter(null, $styles);
+
+        return new ConsoleOutput(ConsoleOutput::VERBOSITY_NORMAL, null, $formatter);
+    }
+
+    /**
      * @deprecated Use Composer\Repository\RepositoryFactory::defaultRepos instead
      */
     public static function createDefaultRepositories(IOInterface $io = null, Config $config = null, RepositoryManager $rm = null)
@@ -297,7 +312,6 @@ class Factory
         }
 
         $vendorDir = $config->get('vendor-dir');
-        $binDir = $config->get('bin-dir');
 
         // initialize composer
         $composer = new Composer();
@@ -460,6 +474,7 @@ class Factory
 
         $dm->setDownloader('git', new Downloader\GitDownloader($io, $config, $executor, $fs));
         $dm->setDownloader('svn', new Downloader\SvnDownloader($io, $config, $executor, $fs));
+        $dm->setDownloader('fossil', new Downloader\FossilDownloader($io, $config, $executor, $fs));
         $dm->setDownloader('hg', new Downloader\HgDownloader($io, $config, $executor, $fs));
         $dm->setDownloader('perforce', new Downloader\PerforceDownloader($io, $config));
         $dm->setDownloader('zip', new Downloader\ZipDownloader($io, $config, $eventDispatcher, $cache, $executor, $rfs));

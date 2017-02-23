@@ -18,8 +18,6 @@ use Symfony\Component\Console\Application as BaseApplication;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Output\ConsoleOutput;
-use Symfony\Component\Console\Formatter\OutputFormatter;
 use Composer\Command;
 use Composer\Composer;
 use Composer\Factory;
@@ -58,6 +56,7 @@ class Application extends BaseApplication
 ';
 
     private $hasPluginCommands = false;
+    private $disablePluginsByDefault = false;
 
     public function __construct()
     {
@@ -95,9 +94,7 @@ class Application extends BaseApplication
     public function run(InputInterface $input = null, OutputInterface $output = null)
     {
         if (null === $output) {
-            $styles = Factory::createAdditionalStyles();
-            $formatter = new OutputFormatter(null, $styles);
-            $output = new ConsoleOutput(ConsoleOutput::VERBOSITY_NORMAL, null, $formatter);
+            $output = Factory::createOutput();
         }
 
         return parent::run($input, $output);
@@ -108,6 +105,8 @@ class Application extends BaseApplication
      */
     public function doRun(InputInterface $input, OutputInterface $output)
     {
+        $this->disablePluginsByDefault = $input->hasParameterOption('--no-plugins');
+
         $io = $this->io = new ConsoleIO($input, $output, $this->getHelperSet());
         ErrorHandler::register($io);
 
@@ -127,7 +126,7 @@ class Application extends BaseApplication
             }
         }
 
-        if (!$input->hasParameterOption('--no-plugins') && !$this->hasPluginCommands && 'global' !== $commandName) {
+        if (!$this->disablePluginsByDefault && !$this->hasPluginCommands && 'global' !== $commandName) {
             try {
                 foreach ($this->getPluginCommands() as $command) {
                     if ($this->has($command->getName())) {
@@ -293,19 +292,23 @@ class Application extends BaseApplication
         }
 
         if (false !== strpos($exception->getMessage(), 'fork failed - Cannot allocate memory')) {
-            $io->writeError('<error>The following exception is caused by a lack of memory and not having swap configured</error>', true, IOInterface::QUIET);
+            $io->writeError('<error>The following exception is caused by a lack of memory or swap, or not having swap configured</error>', true, IOInterface::QUIET);
             $io->writeError('<error>Check https://getcomposer.org/doc/articles/troubleshooting.md#proc-open-fork-failed-errors for details</error>', true, IOInterface::QUIET);
         }
     }
 
     /**
      * @param  bool                    $required
-     * @param  bool                    $disablePlugins
+     * @param  bool|null               $disablePlugins
      * @throws JsonValidationException
      * @return \Composer\Composer
      */
-    public function getComposer($required = true, $disablePlugins = false)
+    public function getComposer($required = true, $disablePlugins = null)
     {
+        if (null === $disablePlugins) {
+            $disablePlugins = $this->disablePluginsByDefault;
+        }
+
         if (null === $this->composer) {
             try {
                 $this->composer = Factory::create($this->io, null, $disablePlugins);
